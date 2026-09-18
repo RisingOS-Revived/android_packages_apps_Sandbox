@@ -87,7 +87,9 @@ fun SettingsScreen(
         onBackClick = onBackClick
     ) { paddingValues ->
         LazyColumn(
-            modifier = Modifier.padding(paddingValues)
+            modifier = Modifier
+                .padding(paddingValues)
+                .padding(horizontal = 16.dp)
         ) {
             item {
                 Spacer(modifier = Modifier.height(8.dp))

@@ -78,9 +78,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -114,6 +111,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -447,83 +445,181 @@ fun SandboxApp(
                     },
                 )
             },
-            bottomBar = {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surfaceBright,
-                    tonalElevation = 0.dp,
-                    modifier = Modifier.navigationBarsPadding()
-                ) {
-                    NavigationBarItem(
-                        selected = pagerState.currentPage == 0,
-                        onClick = { scope.launch { pagerState.animateScrollToPage(0) } },
-                        icon = {
-                            Icon(
-                                imageVector = if (pagerState.currentPage == 0) Icons.Filled.Apps else Icons.Outlined.Apps,
-                                contentDescription = stringResource(R.string.tab_apps)
-                            )
-                        },
-                        label = { Text(stringResource(R.string.tab_apps)) },
-                        colors = NavigationBarItemDefaults.colors(
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer
+        ) { paddingValues ->
+            Box(modifier = Modifier.fillMaxSize()) {
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = paddingValues.calculateTopPadding())
+                ) { page ->
+                    when (page) {
+                        0 -> AppsTab(
+                            apps = filteredApps,
+                            isLoading = isLoading,
+                            onAppClick = { app -> selectedApp = app },
+                            isPrivateAreaExpanded = isPrivateAreaExpanded,
+                            onPrivateAreaExpandChange = onPrivateAreaExpandChange,
+                            onUnlockRequest = onUnlockRequest,
+                            isPrivateUnlocked = isPrivateUnlocked,
+                            isSecuritySetup = isSecuritySetup,
+                            onSetupSecurity = onSetupSecurity
                         )
-                    )
-                    NavigationBarItem(
-                        selected = pagerState.currentPage == 1,
-                        onClick = { scope.launch { pagerState.animateScrollToPage(1) } },
-                        icon = {
-                            Icon(
-                                imageVector = if (pagerState.currentPage == 1) Icons.Filled.Notifications else Icons.Outlined.Notifications,
-                                contentDescription = stringResource(R.string.tab_notifications)
-                            )
-                        },
-                        label = { Text(stringResource(R.string.tab_notifications)) },
-                        colors = NavigationBarItemDefaults.colors(
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer
+                        1 -> NotificationsTab(
+                            isUnlocked = isPrivateUnlocked,
+                            onUnlockRequest = onUnlockRequest
                         )
-                    )
-                    NavigationBarItem(
-                        selected = pagerState.currentPage == 2,
-                        onClick = { scope.launch { pagerState.animateScrollToPage(2) } },
-                        icon = {
-                            Icon(
-                                imageVector = if (pagerState.currentPage == 2) Icons.Filled.FolderOpen else Icons.Outlined.FolderOpen,
-                                contentDescription = stringResource(R.string.tab_vault)
-                            )
-                        },
-                        label = { Text(stringResource(R.string.tab_vault)) },
-                        colors = NavigationBarItemDefaults.colors(
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer
+                        2 -> VaultTab(
+                            isUnlocked = isPrivateUnlocked,
+                            onUnlockRequest = onUnlockRequest,
+                            onPickingFilesChange = onPickingFilesChange
                         )
-                    )
+                    }
+                }
+
+                FloatingPillNavBar(
+                    selectedIndex = pagerState.currentPage,
+                    onTabSelected = { index -> scope.launch { pagerState.animateScrollToPage(index) } },
+                    notificationCount = notificationCount,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(bottom = 16.dp)
+                )
+            }
+        }
+    }
+}
+
+private data class PillNavTab(
+    val filledIcon: ImageVector,
+    val outlinedIcon: ImageVector,
+    val labelRes: Int
+)
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun FloatingPillNavBar(
+    selectedIndex: Int,
+    onTabSelected: (Int) -> Unit,
+    notificationCount: Int,
+    modifier: Modifier = Modifier
+) {
+    val tabs = remember {
+        listOf(
+            PillNavTab(Icons.Filled.Apps, Icons.Outlined.Apps, R.string.tab_apps),
+            PillNavTab(Icons.Filled.Notifications, Icons.Outlined.Notifications, R.string.tab_notifications),
+            PillNavTab(Icons.Filled.FolderOpen, Icons.Outlined.FolderOpen, R.string.tab_vault)
+        )
+    }
+
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = 3.dp,
+        shadowElevation = 8.dp,
+        modifier = modifier.wrapContentSize()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            tabs.forEachIndexed { index, tab ->
+                PillNavItem(
+                    selected = selectedIndex == index,
+                    icon = if (selectedIndex == index) tab.filledIcon else tab.outlinedIcon,
+                    label = stringResource(tab.labelRes),
+                    badgeCount = if (index == 1) notificationCount else 0,
+                    onClick = { onTabSelected(index) }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun PillNavItem(
+    selected: Boolean,
+    icon: ImageVector,
+    label: String,
+    badgeCount: Int,
+    onClick: () -> Unit
+) {
+    val motionScheme = MaterialTheme.motionScheme
+
+    val containerColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.primaryContainer
+        else Color.Transparent,
+        animationSpec = motionScheme.fastSpatialSpec(),
+        label = "pillItemContainer"
+    )
+    val contentColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
+        else MaterialTheme.colorScheme.onSurfaceVariant,
+        animationSpec = motionScheme.fastEffectsSpec(),
+        label = "pillItemContent"
+    )
+    val horizontalPadding by animateFloatAsState(
+        targetValue = if (selected) 20f else 14f,
+        animationSpec = motionScheme.fastSpatialSpec(),
+        label = "pillItemPadding"
+    )
+
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = containerColor,
+        contentColor = contentColor,
+        modifier = Modifier.height(52.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = horizontalPadding.dp, vertical = 0.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Box {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    modifier = Modifier.size(24.dp)
+                )
+                if (badgeCount > 0) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = 6.dp, y = (-4).dp)
+                            .size(16.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.error),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (badgeCount > 9) "9+" else badgeCount.toString(),
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                            color = MaterialTheme.colorScheme.onError
+                        )
+                    }
                 }
             }
-        ) { paddingValues ->
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-            ) { page ->
-                when (page) {
-                    0 -> AppsTab(
-                        apps = filteredApps,
-                        isLoading = isLoading,
-                        onAppClick = { app -> selectedApp = app },
-                        isPrivateAreaExpanded = isPrivateAreaExpanded,
-                        onPrivateAreaExpandChange = onPrivateAreaExpandChange,
-                        onUnlockRequest = onUnlockRequest,
-                        isPrivateUnlocked = isPrivateUnlocked,
-                        isSecuritySetup = isSecuritySetup,
-                        onSetupSecurity = onSetupSecurity
-                    )
-                    1 -> NotificationsTab(
-                        isUnlocked = isPrivateUnlocked,
-                        onUnlockRequest = onUnlockRequest
-                    )
-                    2 -> VaultTab(
-                        isUnlocked = isPrivateUnlocked,
-                        onUnlockRequest = onUnlockRequest,
-                        onPickingFilesChange = onPickingFilesChange
+
+            androidx.compose.animation.AnimatedVisibility(
+                visible = selected,
+                enter = androidx.compose.animation.expandHorizontally(
+                    animationSpec = motionScheme.fastSpatialSpec()
+                ) + androidx.compose.animation.fadeIn(),
+                exit = androidx.compose.animation.shrinkHorizontally(
+                    animationSpec = motionScheme.fastSpatialSpec()
+                ) + androidx.compose.animation.fadeOut()
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
